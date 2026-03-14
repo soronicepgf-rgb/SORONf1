@@ -19,24 +19,21 @@ function RivObfuscator.Obfuscate(sourceCode)
     for i = 1, #sourceCode do
         table.insert(byteCodeArray, string.byte(sourceCode, i) + 14)
     end
-    -- On utilise "|" comme séparateur, c'est beaucoup plus sûr que les slashs
     local encryptedString = table.concat(byteCodeArray, "|")
 
-    -- J'ai retiré les commentaires internes pour éviter le bug de saut de ligne
-    local finalCode = [[
-local ]]..tableVarName..[[ = string.split("]]..encryptedString..[[", "|")
-local ]]..stringVarName..[[ = ""
-local ]]..decoderName..[[ = function()
-    for _, ]]..byteVarName..[[ in ipairs(]]..tableVarName..[[) do
-        if ]]..byteVarName..[[ ~= "" then
-            ]]..stringVarName..[[ = ]]..stringVarName..[[ .. string.char(tonumber(]]..byteVarName..[[) - 14)
-        end
-    end
-    return ]]..stringVarName..[[
-end
-local execute = loadstring(]]..decoderName..[[())
-if execute then execute() end
-]]
+    -- On remplace les [[ ]] par une concaténation stricte avec \n et des points-virgules
+    local finalCode = "local " .. tableVarName .. " = string.split('" .. encryptedString .. "', '|');\n"
+    finalCode = finalCode .. "local " .. stringVarName .. " = '';\n"
+    finalCode = finalCode .. "local " .. decoderName .. " = function()\n"
+    finalCode = finalCode .. "    for _, " .. byteVarName .. " in ipairs(" .. tableVarName .. ") do\n"
+    finalCode = finalCode .. "        if " .. byteVarName .. " ~= '' then\n"
+    finalCode = finalCode .. "            " .. stringVarName .. " = " .. stringVarName .. " .. string.char(tonumber(" .. byteVarName .. ") - 14);\n"
+    finalCode = finalCode .. "        end;\n"
+    finalCode = finalCode .. "    end;\n"
+    finalCode = finalCode .. "    return " .. stringVarName .. ";\n"
+    finalCode = finalCode .. "end;\n"
+    finalCode = finalCode .. "local execute = loadstring(" .. decoderName .. "());\n"
+    finalCode = finalCode .. "if execute then execute(); end;\n"
 
     return finalCode
 end
