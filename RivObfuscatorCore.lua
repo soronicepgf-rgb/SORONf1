@@ -11,9 +11,9 @@ end
 
 function RivObfuscator.Obfuscate(sourceCode)
     local decoderName = generateRandomName(8)
-    local stringVarName = generateRandomName(12)
     local tableVarName = generateRandomName(10)
     local byteVarName = generateRandomName(6)
+    local outputTableVar = generateRandomName(9) -- Nouvelle variable pour l'optimisation
     
     local byteCodeArray = {}
     for i = 1, #sourceCode do
@@ -21,16 +21,16 @@ function RivObfuscator.Obfuscate(sourceCode)
     end
     local encryptedString = table.concat(byteCodeArray, "|")
 
-    -- On remplace les [[ ]] par une concaténation stricte avec \n et des points-virgules
+    -- Génération du code avec l'optimisation "table.concat" pour un décodage instantané
     local finalCode = "local " .. tableVarName .. " = string.split('" .. encryptedString .. "', '|');\n"
-    finalCode = finalCode .. "local " .. stringVarName .. " = '';\n"
     finalCode = finalCode .. "local " .. decoderName .. " = function()\n"
+    finalCode = finalCode .. "    local " .. outputTableVar .. " = {};\n"
     finalCode = finalCode .. "    for _, " .. byteVarName .. " in ipairs(" .. tableVarName .. ") do\n"
     finalCode = finalCode .. "        if " .. byteVarName .. " ~= '' then\n"
-    finalCode = finalCode .. "            " .. stringVarName .. " = " .. stringVarName .. " .. string.char(tonumber(" .. byteVarName .. ") - 14);\n"
+    finalCode = finalCode .. "            table.insert(" .. outputTableVar .. ", string.char(tonumber(" .. byteVarName .. ") - 14));\n"
     finalCode = finalCode .. "        end;\n"
     finalCode = finalCode .. "    end;\n"
-    finalCode = finalCode .. "    return " .. stringVarName .. ";\n"
+    finalCode = finalCode .. "    return table.concat(" .. outputTableVar .. ");\n"
     finalCode = finalCode .. "end;\n"
     finalCode = finalCode .. "local execute = loadstring(" .. decoderName .. "());\n"
     finalCode = finalCode .. "if execute then execute(); end;\n"
