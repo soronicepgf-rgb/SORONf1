@@ -1,78 +1,80 @@
 local RivObfuscator = {}
 
-local function genConfusingName(len)
-    local chars = {"O", "0", "l", "I"}
-    local name = chars[math.random(3, 4)] -- Commence toujours par l ou I
-    for i=2, len do name = name .. chars[math.random(1, #chars)] end
-    return name
+local function generateString(len)
+    local c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    local s = ""
+    for i = 1, len do
+        local r = math.random(1, #c)
+        s = s .. string.sub(c, r, r)
+    end
+    return s
 end
 
-function RivObfuscator.Obfuscate(sourceCode)
-    -- Variables principales indéchiffrables
-    local vEnv = genConfusingName(8)
-    local vData = genConfusingName(10)
-    local fDec = genConfusingName(9)
-    local fMath = genConfusingName(7)
-    
-    -- Génération d'un sel mathématique aléatoire
-    local salt1 = math.random(1000, 9000)
-    local salt2 = math.random(10, 99)
-    
-    -- 1. Chiffrement Mathématique Lourd
-    -- On simule la boucle mathématique que le décodeur devra faire pour trouver la vraie clé
-    local runtimeKey = salt1
-    for i = 1, 5000 do
-        runtimeKey = (runtimeKey * 17 + salt2) % 256
+local function generateOpcodes()
+    local ops = ""
+    for i = 1, 300 do
+        ops = ops .. "local op_" .. generateString(8) .. " = " .. math.random(1000, 9999) .. ";\n"
     end
-    
-    local encryptedBytes = {}
-    for i = 1, #sourceCode do
-        local byte = string.byte(sourceCode, i)
-        -- Chiffrement dynamique basé sur l'index et la clé calculée
-        local mutatedByte = (byte + runtimeKey + (i % 10)) % 256
-        table.insert(encryptedBytes, tostring(mutatedByte))
-    end
-    
-    local payload = table.concat(encryptedBytes, ",")
+    return ops
+end
 
-    -- 2. Construction du Wrapper Anti-IA
-    local out = "-- RIV OBFUSCATOR : NEURAL BLOCKER EDITION\n"
+function RivObfuscator.Obfuscate(source)
+    local envVar = generateString(12)
+    local dataVar = generateString(15)
+    local outVar = generateString(10)
     
-    -- L'IA ne verra pas "getfenv", on le reconstruit via son pointeur d'environnement
-    out = out .. "local " .. vEnv .. " = getfenv;\n"
-    out = out .. "local " .. vData .. " = {" .. payload .. "};\n"
+    local keyBase = math.random(50, 150)
     
-    -- Fonction de surcharge mathématique (L'IA va rater ce calcul statique)
-    out = out .. "local function " .. fMath .. "(s1, s2)\n"
-    out = out .. "    local k = s1;\n"
-    out = out .. "    for i = 1, 5000 do k = (k * 17 + s2) % 256 end;\n"
-    out = out .. "    return k;\n"
-    out = out .. "end;\n"
+    -- Chiffrement
+    local encrypted = {}
+    for i = 1, #source do
+        local b = string.byte(source, i)
+        local k = (keyBase + i) % 256
+        table.insert(encrypted, tostring((b + k) % 256))
+    end
+    local payload = table.concat(encrypted, "\\")
+
+    -- Construction du code généré
+    local code = "-- RIV V5 : AI-SANDBOX BLACKLIST\n"
+    code = code .. generateOpcodes()
     
+    code = code .. "local " .. envVar .. " = getfenv and getfenv() or _ENV;\n"
+    
+    -- VERROUILLAGE ROBLOX : L'IA plantera ici car elle ne possède pas 'game' ou 'Instance'
+    code = code .. "if not " .. envVar .. ".game then return end;\n"
+    code = code .. "if type(" .. envVar .. ".game) ~= 'userdata' then return end;\n"
+    
+    -- La clé dépend de la longueur du nom de la classe de 'game' (DataModel = 9)
+    -- Si l'IA essaie de deviner statiquement, elle ratera la clé.
+    code = code .. "local engineKey = string.len(" .. envVar .. ".game.ClassName or 'xxxxxxxxx');\n"
+    code = code .. "if engineKey ~= 9 then return end;\n"
+    
+    -- Vraie clé calculée avec la variable Roblox
+    local fakeMathBase = keyBase - 9 
+    code = code .. "local dynamicKey = " .. fakeMathBase .. " + engineKey;\n"
+
+    code = code .. "local " .. dataVar .. " = string.split('" .. payload .. "', '\\');\n"
+    code = code .. "local " .. outVar .. " = {};\n"
+
     -- Décodeur
-    out = out .. "local function " .. fDec .. "()\n"
-    out = out .. "    local env = " .. vEnv .. "();\n"
-    -- Reconstitution masquée de "string.char" et "table.concat"
-    out = out .. "    local sc = env[string.char(115,116,114,105,110,103)][string.char(99,104,97,114)];\n"
-    out = out .. "    local tc = env[string.char(116,97,98,108,101)][string.char(99,111,110,99,97,116)];\n"
-    
-    out = out .. "    local key = " .. fMath .. "("..salt1..", "..salt2..");\n"
-    out = out .. "    local res = {};\n"
-    out = out .. "    for i = 1, #" .. vData .. " do\n"
-    out = out .. "        local b = tonumber(" .. vData .. "[i]);\n"
-    out = out .. "        local orig = (b - key - (i % 10)) % 256;\n"
-    out = out .. "        if orig < 0 then orig = orig + 256 end;\n"
-    out = out .. "        res[i] = sc(orig);\n"
-    out = out .. "    end;\n"
-    out = out .. "    return tc(res);\n"
-    out = out .. "end;\n"
-    
-    -- Exécution masquée de loadstring
-    out = out .. "local exec = " .. vEnv .. "()[string.char(108,111,97,100,115,116,114,105,110,103)];\n"
-    out = out .. "local run = exec(" .. fDec .. "());\n"
-    out = out .. "if run then run() end;\n"
+    code = code .. "for i = 1, #" .. dataVar .. " do\n"
+    code = code .. "    local val = tonumber(" .. dataVar .. "[i]);\n"
+    code = code .. "    if val then\n"
+    code = code .. "        local k = (dynamicKey + i) % 256;\n"
+    code = code .. "        local orig = (val - k) % 256;\n"
+    code = code .. "        if orig < 0 then orig = orig + 256 end;\n"
+    code = code .. "        table.insert(" .. outVar .. ", string.char(orig));\n"
+    code = code .. "    end;\n"
+    code = code .. "end;\n"
 
-    return out
+    -- Exécution
+    code = code .. "local exe = " .. envVar .. ".loadstring or " .. envVar .. ".load;\n"
+    code = code .. "if exe then\n"
+    code = code .. "    local fn = exe(table.concat(" .. outVar .. "));\n"
+    code = code .. "    if fn then fn() end;\n"
+    code = code .. "end;\n"
+
+    return code
 end
 
 return RivObfuscator
